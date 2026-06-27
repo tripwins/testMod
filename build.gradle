@@ -1,0 +1,141 @@
+plugins {
+    id 'fabric-loom' version '1.15-SNAPSHOT'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+loom {
+    splitEnvironmentSourceSets()
+
+    mods {
+        'prisonsutils' {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+repositories {
+}
+
+def lunarModsDir = file("${System.getProperty('user.home')}/.lunarclient/profiles/lunar/1.21/mods/fabric-1.21.11")
+def desktopDir = file("${System.getProperty('user.home')}/Desktop")
+
+// Atomically copies builtJar into targetDir, replacing any existing copy. Returns the dest File.
+ext.deployJarTo = { File builtJar, File targetDir ->
+    targetDir.mkdirs()
+    File dest = new File(targetDir, builtJar.name)
+    java.nio.file.Path tmp = java.nio.file.Paths.get(dest.absolutePath + ".incoming.tmp")
+    java.nio.file.Files.deleteIfExists(tmp)
+    java.nio.file.Files.copy(builtJar.toPath(), tmp,
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    try {
+        java.nio.file.Files.move(tmp, dest.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        logger.lifecycle("Installed {} to {}", builtJar.name, targetDir)
+    } catch (java.nio.file.AccessDeniedException | java.nio.file.FileSystemException ex) {
+        java.nio.file.Files.deleteIfExists(tmp)
+        logger.warn("Could not install to {} — close Lunar Client and rebuild ({})", targetDir, ex.message)
+    }
+    return dest
+}
+
+tasks.register('installToLunarMods') {
+    dependsOn(tasks.named('remapJar'))
+
+    doLast {
+        def remapJarTask = tasks.named('remapJar').get()
+        File builtJar = remapJarTask.archiveFile.get().asFile
+
+        if (!builtJar.exists()) {
+            throw new GradleException("Expected remapped jar not found: ${builtJar}")
+        }
+
+        // Deploy to both the Lunar profile mods dir AND the Desktop (Lunar's external-mods
+        // source on this machine). Whichever Lunar is actually reading, it gets the fresh jar.
+        File lunarDest = deployJarTo(builtJar, lunarModsDir)
+        File desktopDest = deployJarTo(builtJar, desktopDir)
+
+        // Tidy any stray older-version jars in the Lunar profile dir.
+        lunarModsDir.listFiles()?.findAll { File candidate ->
+            String lower = candidate.name.toLowerCase(java.util.Locale.ROOT)
+            lower.startsWith(project.archives_base_name.toLowerCase(java.util.Locale.ROOT)) &&
+                    lower.endsWith('.jar') &&
+                    !candidate.equals(lunarDest)
+        }?.each { File staleJar ->
+            if (!staleJar.delete()) {
+                logger.warn("Could not delete stale Lunar mod jar: {}", staleJar)
+            }
+        }
+    }
+}
+
+tasks.named('build').configure {
+    finalizedBy(tasks.named('installToLunarMods'))
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'minecraft_version', project.minecraft_version
+    inputs.property 'loader_version', project.loader_version
+    filteringCharset 'UTF-8'
+
+    filesMatching('fabric.mod.json') {
+        expand(
+            version: project.version,
+            minecraft_version: project.minecraft_version,
+            loader_version: project.loader_version
+        )
+    }
+}
+
+def targetJavaVersion = 21
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        options.release.set(targetJavaVersion)
+    }
+}
+
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+
+    withSourcesJar()
+}
+
+jar {
+    from('LICENSE.txt') {
+        rename { "${it}_${project.archives_base_name}" }
+    }
+}
+
+publishing {
+    publications {
+        create('mavenJava', MavenPublication) {
+            artifactId = project.archives_base_name
+            from components.java
+        }
+    }
+
+    repositories {
+    }
+}

@@ -1,0 +1,29 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.prisonsutils.mixin.client",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "HandledScreenAccessor",
+    "InventoryShiftMixin",
+    "InventoryRenderMixin",
+    "InventoryClickMixin",
+    "InventoryScrollMixin",
+    "InventoryDragMixin",
+    "RecipeBookButtonMixin",
+    "HandledScreenSlotMixin",
+    "HandledScreenSearchBarMixin",
+    "HandledScreenVaultButtonsMixin",
+    "SlotLockMixin",
+    "RarityTintMixin",
+    "LivingEntityMixin",
+    "MinecraftClientMixin",
+    "InteractionManagerMixin",
+    "ClientPlayNetworkHandlerMixin",
+    "ItemEntityRendererMixin",
+    "ItemStackGlintMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

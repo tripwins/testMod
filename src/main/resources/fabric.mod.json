@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "prisonsutils",
+  "version": "${version}",
+  "name": "Prisons Utils",
+  "description": "Quality-of-life utilities for CosmicPrisons with a creative-style tabbed inventory UI.",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "dev.prisonsutils.PrisonsUtils"
+    ],
+    "client": [
+      "dev.prisonsutils.client.PrisonsUtilsClient"
+    ]
+  },
+  "mixins": [
+    {
+      "config": "prisonsutils.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
